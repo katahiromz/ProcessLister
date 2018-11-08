@@ -4,7 +4,36 @@
 
 #include "targetver.h"
 #include "MProcessListBox.hpp"
+#include "MResizable.hpp"
 #include "resource.h"
+
+struct MProcessInfoEx : MProcessInfo
+{
+    HWND m_hwnd;
+    MString m_window_text;
+    MString m_fullpath;
+    virtual void from_entry(const PROCESSENTRY32& entry)
+    {
+        MProcessInfo::from_entry(entry);
+        m_hwnd = get_window();
+        m_window_text = MWindowBase::GetWindowText(m_hwnd);
+        m_fullpath = get_full_path();
+    }
+    virtual MString get_text() const
+    {
+        MString window_text = m_window_text;
+        if (window_text.size() >= 20)
+        {
+            window_text.resize(20);
+            window_text += TEXT("...");
+        }
+        TCHAR szText[MAX_PATH * 2];
+        StringCbPrintf(szText, sizeof(szText), TEXT("PID %08X hwnd %p %s %s"),
+            th32ProcessID, m_hwnd, window_text.c_str(), m_fullpath.c_str());
+        return szText;
+    }
+};
+
 
 class MMainDlg : public MDialogBase
 {
@@ -14,6 +43,7 @@ public:
     HICON       m_hIconSm;      // the small icon
     MProcessListBox     m_lst1;
     DWORD   m_pid;
+    MResizable m_resizable;
 
     MMainDlg(INT argc, TCHAR **targv, HINSTANCE hInst)
         : MDialogBase(IDD_MAIN), m_hInst(hInst),
@@ -32,7 +62,15 @@ public:
         SendMessageDx(WM_SETICON, ICON_SMALL, LPARAM(m_hIconSm));
 
         SubclassChildDx(m_lst1, lst1);
-        m_lst1.refresh();
+        m_lst1.refresh<MProcessInfoEx>();
+
+        m_resizable.OnParentCreate(hwnd);
+
+        m_resizable.SetLayoutAnchor(lst1, mzcLA_TOP_LEFT, mzcLA_BOTTOM_RIGHT);
+        m_resizable.SetLayoutAnchor(psh1, mzcLA_BOTTOM_LEFT);
+        m_resizable.SetLayoutAnchor(IDOK, mzcLA_BOTTOM_RIGHT);
+        m_resizable.SetLayoutAnchor(IDCANCEL, mzcLA_BOTTOM_RIGHT);
+
         return TRUE;
     }
 
@@ -48,9 +86,14 @@ public:
             EndDialog(IDCANCEL);
             break;
         case psh1:
-            m_lst1.refresh();
+            m_lst1.refresh<MProcessInfoEx>();
             break;
         }
+    }
+
+    void OnSize(HWND hwnd, UINT state, int cx, int cy)
+    {
+        m_resizable.OnSize();
     }
 
     virtual INT_PTR CALLBACK
@@ -60,6 +103,7 @@ public:
         {
         HANDLE_MSG(hwnd, WM_INITDIALOG, OnInitDialog);
         HANDLE_MSG(hwnd, WM_COMMAND, OnCommand);
+        HANDLE_MSG(hwnd, WM_SIZE, OnSize);
         default:
             return DefaultProcDx();
         }
