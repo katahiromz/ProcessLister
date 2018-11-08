@@ -125,7 +125,7 @@ public:
         {
             TCHAR szText[64];
             StringCbPrintf(szText, sizeof(szText), TEXT("pid: 0x%08lX"), m_pid);
-            MsgBoxDx(szText, MB_ICONINFORMATION);
+            MsgBoxDx(szText, TEXT("Selected Process"), MB_ICONINFORMATION);
         }
     }
 };
