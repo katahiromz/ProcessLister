@@ -7,6 +7,8 @@
 #include "MResizable.hpp"
 #include "resource.h"
 
+#define MAX_WINDOW_TEXT 32
+
 struct MProcessInfoEx : MProcessInfo
 {
     HWND m_hwnd;
@@ -22,9 +24,9 @@ struct MProcessInfoEx : MProcessInfo
     virtual MString get_text() const
     {
         MString window_text = m_window_text;
-        if (window_text.size() >= 20)
+        if (window_text.size() >= MAX_WINDOW_TEXT)
         {
-            window_text.resize(20);
+            window_text.resize(MAX_WINDOW_TEXT);
             window_text += TEXT("...");
         }
         TCHAR szText[MAX_PATH * 2];
@@ -111,8 +113,8 @@ public:
 
     BOOL StartDx(INT nCmdShow)
     {
-        m_hIcon = LoadIconDx(1);
-        m_hIconSm = LoadSmallIconDx(1);
+        m_hIcon = LoadIconDx(IDI_MAIN);
+        m_hIconSm = LoadSmallIconDx(IDI_MAIN);
 
         return TRUE;
     }
