@@ -30,8 +30,8 @@ struct MProcessInfoEx : MProcessInfo
             window_text += TEXT("...");
         }
         TCHAR szText[MAX_PATH * 2];
-        StringCbPrintf(szText, sizeof(szText), TEXT("PID %08X hwnd %p %s %s"),
-            th32ProcessID, m_hwnd, window_text.c_str(), m_fullpath.c_str());
+        StringCbPrintf(szText, sizeof(szText), TEXT("PID %08X hwnd %p %s %s %s"),
+            th32ProcessID, m_hwnd, szExeFile, window_text.c_str(), m_fullpath.c_str());
         return szText;
     }
 };
