@@ -262,8 +262,11 @@ MProcessListBox::EnumWindowsProc(HWND hwnd, LPARAM lParam)
     ::GetWindowThreadProcessId(hwnd, &pid);
     if (paw->pid == pid)
     {
-        paw->hwnd = hwnd;
-        return FALSE;
+        if (GetWindow(hwnd, GW_OWNER) == NULL)
+        {
+            paw->hwnd = hwnd;
+            return FALSE;
+        }
     }
     return TRUE;
 }
