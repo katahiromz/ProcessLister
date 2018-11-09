@@ -151,8 +151,26 @@ public:
         rc.left = s_nItemHeight;
         rc.top = (rc.top + rc.bottom) / 2;
         rc.bottom -= s_nItemHeight / 6;
-        StringCbPrintf(szText, sizeof(szText), TEXT("%s %s"),
-                       strWindowText.c_str(), strFullPath.c_str());
+        if (strFullPath.size() && strWindowText.size())
+        {
+            StringCbPrintf(szText, sizeof(szText), TEXT("%s %s"),
+                           strWindowText.c_str(), strFullPath.c_str());
+        }
+        else if (!strFullPath.size() && strWindowText.size())
+        {
+            StringCbPrintf(szText, sizeof(szText), TEXT("%s %s"),
+                           strWindowText.c_str(), entry->szExeFile);
+        }
+        else if (strFullPath.size() && !strWindowText.size())
+        {
+            StringCbPrintf(szText, sizeof(szText), TEXT("%s"),
+                           strFullPath.c_str());
+        }
+        else if (!strFullPath.size() && !strWindowText.size())
+        {
+            StringCbPrintf(szText, sizeof(szText), TEXT("%s"),
+                           entry->szExeFile);
+        }
         DrawText(hDC, szText, -1, &rc, uFormat);
     }
 
