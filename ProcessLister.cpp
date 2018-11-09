@@ -7,55 +7,32 @@
 #include "MResizable.hpp"
 #include "resource.h"
 
-#define MAX_WINDOW_TEXT 32
+static const INT s_nItemHeight = 48;
+static const INT s_nIconSize = 32;
 
-struct MProcessInfoEx : MProcessInfo
-{
-    HWND m_hwnd;
-    MString m_window_text;
-    MString m_fullpath;
-    virtual void from_entry(const PROCESSENTRY32& entry)
-    {
-        MProcessInfo::from_entry(entry);
-        m_hwnd = get_window();
-        m_window_text = MWindowBase::GetWindowText(m_hwnd);
-        m_fullpath = get_full_path();
-    }
-    virtual MString get_text() const
-    {
-        MString window_text = m_window_text;
-        if (window_text.size() >= MAX_WINDOW_TEXT)
-        {
-            window_text.resize(MAX_WINDOW_TEXT);
-            window_text += TEXT("...");
-        }
-        TCHAR szText[MAX_PATH * 2];
-        StringCbPrintf(szText, sizeof(szText), TEXT("PID %08X hwnd %p %s %s %s"),
-            th32ProcessID, m_hwnd, szExeFile, window_text.c_str(), m_fullpath.c_str());
-        return szText;
-    }
-};
-
-
-class MMainDlg : public MDialogBase
+class ProcessLister : public MDialogBase
 {
 public:
-    HINSTANCE   m_hInst;        // the instance handle
-    HICON       m_hIcon;        // the main icon
-    HICON       m_hIconSm;      // the small icon
-    MProcessListBox     m_lst1;
-    DWORD   m_pid;
-    MResizable m_resizable;
+    HINSTANCE       m_hInst;        // the instance handle
+    HICON           m_hIcon;        // the main icon
+    HICON           m_hIconSm;      // the small icon
+    MProcessListBox m_lst1;         // the list box
+    DWORD           m_pid;          // the process id
+    MResizable      m_resizable;    // make the window resizable layout
 
-    MMainDlg(INT argc, TCHAR **targv, HINSTANCE hInst)
+    ProcessLister(INT argc, TCHAR **targv, HINSTANCE hInst)
         : MDialogBase(IDD_MAIN), m_hInst(hInst),
           m_hIcon(NULL), m_hIconSm(NULL)
     {
+        m_hIcon = LoadIconDx(IDI_MAIN);
+        m_hIconSm = LoadSmallIconDx(IDI_MAIN);
         m_pid = 0;
     }
 
-    virtual ~MMainDlg()
+    virtual ~ProcessLister()
     {
+        DestroyIcon(m_hIcon);
+        DestroyIcon(m_hIconSm);
     }
 
     BOOL OnInitDialog(HWND hwnd, HWND hwndFocus, LPARAM lParam)
@@ -64,7 +41,7 @@ public:
         SendMessageDx(WM_SETICON, ICON_SMALL, LPARAM(m_hIconSm));
 
         SubclassChildDx(m_lst1, lst1);
-        m_lst1.refresh<MProcessInfoEx>();
+        m_lst1.refresh();
 
         m_resizable.OnParentCreate(hwnd);
 
@@ -88,7 +65,7 @@ public:
             EndDialog(IDCANCEL);
             break;
         case psh1:
-            m_lst1.refresh<MProcessInfoEx>();
+            m_lst1.refresh();
             break;
         }
     }
@@ -96,6 +73,87 @@ public:
     void OnSize(HWND hwnd, UINT state, int cx, int cy)
     {
         m_resizable.OnSize();
+    }
+
+    void OnMeasureItem(HWND hwnd, MEASUREITEMSTRUCT * lpMeasureItem)
+    {
+        if (lpMeasureItem->CtlType != ODT_LISTBOX || lpMeasureItem->CtlID != lst1)
+            return;
+
+        lpMeasureItem->itemHeight = s_nItemHeight;
+    }
+
+    void OnDrawItem(HWND hwnd, const DRAWITEMSTRUCT * lpDrawItem)
+    {
+        if (lpDrawItem->CtlType != ODT_LISTBOX || lpDrawItem->CtlID != lst1)
+            return;
+
+        if (lpDrawItem->itemID == -1)
+            return;
+
+        RECT rcItem = lpDrawItem->rcItem;
+        HDC hDC = lpDrawItem->hDC;
+        if (lpDrawItem->itemState & ODS_SELECTED)
+        {
+            FillRect(hDC, &rcItem, (HBRUSH)(COLOR_HIGHLIGHT + 1));
+        }
+        else
+        {
+            FillRect(hDC, &rcItem, (HBRUSH)(COLOR_WINDOW + 1));
+        }
+
+        if (lpDrawItem->itemState & ODS_FOCUS)
+        {
+            DrawFocusRect(hDC, &rcItem);
+        }
+
+        LPVOID pData = (LPVOID)lpDrawItem->itemData;
+        MProcessListBox::entry_type *entry = (MProcessListBox::entry_type *)pData;
+
+        DWORD pid = entry->th32ProcessID;
+        HWND window = m_lst1.WindowFromProcess(pid);
+        HICON hIcon = m_lst1.GetIconOfWindow(window);
+        MString strFullPath = m_lst1.GetProcessFullPath(pid);
+        MString strWindowText = MWindowBase::GetWindowText(window);
+
+        INT xyIcon = (s_nItemHeight - s_nIconSize) / 2;
+        DrawIconEx(hDC, rcItem.left + xyIcon, rcItem.top + xyIcon, hIcon,
+                   s_nIconSize, s_nIconSize, 0, NULL, DI_NORMAL);
+
+        SetBkMode(hDC, TRANSPARENT);
+
+        TCHAR szText[MAX_PATH];
+        UINT uFormat = DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS;
+        if (lpDrawItem->itemState & ODS_SELECTED)
+        {
+            SetBkColor(hDC, GetSysColor(COLOR_HIGHLIGHT));
+            SetTextColor(hDC, GetSysColor(COLOR_HIGHLIGHTTEXT));
+        }
+        else
+        {
+            SetBkColor(hDC, GetSysColor(COLOR_WINDOW));
+            SetTextColor(hDC, GetSysColor(COLOR_WINDOWTEXT));
+        }
+
+        RECT rc;
+        rc = rcItem;
+        rc.left = s_nItemHeight;
+        rc.top += s_nItemHeight / 6;
+        rc.bottom = (rc.top + rc.bottom) / 2;
+        if (window)
+            StringCbPrintf(szText, sizeof(szText), TEXT("PID:%08lX, HWND:%p"),
+                           pid, (HWND)window);
+        else
+            StringCbPrintf(szText, sizeof(szText), TEXT("PID:%08lX"), pid);
+        DrawText(hDC, szText, -1, &rc, uFormat);
+
+        rc = rcItem;
+        rc.left = s_nItemHeight;
+        rc.top = (rc.top + rc.bottom) / 2;
+        rc.bottom -= s_nItemHeight / 6;
+        StringCbPrintf(szText, sizeof(szText), TEXT("%s %s"),
+                       strWindowText.c_str(), strFullPath.c_str());
+        DrawText(hDC, szText, -1, &rc, uFormat);
     }
 
     virtual INT_PTR CALLBACK
@@ -106,6 +164,8 @@ public:
         HANDLE_MSG(hwnd, WM_INITDIALOG, OnInitDialog);
         HANDLE_MSG(hwnd, WM_COMMAND, OnCommand);
         HANDLE_MSG(hwnd, WM_SIZE, OnSize);
+        HANDLE_MSG(hwnd, WM_MEASUREITEM, OnMeasureItem);
+        HANDLE_MSG(hwnd, WM_DRAWITEM, OnDrawItem);
         default:
             return DefaultProcDx();
         }
@@ -113,9 +173,6 @@ public:
 
     BOOL StartDx(INT nCmdShow)
     {
-        m_hIcon = LoadIconDx(IDI_MAIN);
-        m_hIconSm = LoadSmallIconDx(IDI_MAIN);
-
         return TRUE;
     }
 
@@ -143,7 +200,7 @@ INT APIENTRY _tWinMain(
     int ret = -1;
 
     {
-        MMainDlg app(__argc, __targv, hInstance);
+        ProcessLister app(__argc, __targv, hInstance);
 
         ::InitCommonControls();
 
